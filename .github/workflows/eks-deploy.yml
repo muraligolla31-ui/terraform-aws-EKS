@@ -1,0 +1,58 @@
+name: Terraform EKS Deploy
+
+on:
+  push:
+    branches:
+      - main   # dev deploy
+      - prod   # prod deploy
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    name: Deploy EKS Cluster
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Decide environment (dev/prod)
+      - name: Set Environment
+        id: env
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/prod" ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "env=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # AWS Authentication
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      # Terraform Init
+      - name: Terraform Init
+        run: terraform init
+        working-directory: environments/${{ steps.env.outputs.env }}
+
+      # Terraform Validate
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: environments/${{ steps.env.outputs.env }}
+
+      # Terraform Plan
+      - name: Terraform Plan
+        run: terraform plan
+        working-directory: environments/${{ steps.env.outputs.env }}
+
+      # Terraform Apply
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        working-directory: environments/${{ steps.env.outputs.env }}
